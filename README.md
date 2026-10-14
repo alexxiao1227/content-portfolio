@@ -1,2 +1,2 @@
-# content-portfolio.
+# content-portfolio
 alex Xiao content portfolio
