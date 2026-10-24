@@ -123,7 +123,7 @@
       $$('.vcard:not([hidden]), .featured:not([hidden])').forEach((el, i) => el.style.setProperty('--i', i));
       setTimeout(() => toShow.forEach(el => el.classList.remove('entering')), 700);
       const n = all.filter(el => !el.hidden).length;
-      countEl.textContent = `${String(n).padStart(2, '0')} ${n === 1 ? 'video' : 'videos'}`;
+      countEl.textContent = `${String(n).padStart(2, '0')} on the board · 09 on the wheel`;
       filtering = false;
     };
     reduce || !toHide.length ? swap() : setTimeout(swap, 280);
@@ -196,6 +196,127 @@
   placeInd(dockLinks[0], false);
 
   $('#toTop').addEventListener('click', () => window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' }));
+
+
+  /* ---------- Bonus round: roulette ---------- */
+  (function roulette() {
+    const svg = $('#wheel'); if (!svg) return;
+    const data = $$('.wheel-data li').map(li => ({ ...li.dataset }));
+    const n = data.length; if (!n) return;
+    const NS = 'http://www.w3.org/2000/svg';
+    const C = 250, R_OUT = 244, R_TRACK_O = 226, R_TRACK_I = 208, R_POCKET_O = 206, R_POCKET_I = 104, R_HUB = 100;
+    const el = (t, a, parent) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (parent) parent.appendChild(e); return e; };
+    const P = (r, deg) => { const a = (deg - 90) * Math.PI / 180; return [C + Math.cos(a) * r, C + Math.sin(a) * r]; };
+    const step = 360 / n;
+
+    // defs
+    const defs = el('defs', {}, svg);
+    const grad = (id, stops, attrs = {}) => { const g = el(attrs.r ? 'radialGradient' : 'linearGradient', { id, ...attrs }, defs); stops.forEach(([o, c]) => el('stop', { offset: o, 'stop-color': c }, g)); };
+    grad('rimG', [[0, '#5c4719'], [.18, '#a68538'], [.4, '#f0dc98'], [.55, '#d9bd6e'], [.75, '#8a6d2c'], [1, '#c7a751']], { x1: 0, y1: 0, x2: 1, y2: 1 });
+    grad('studG', [[0, '#fff3c4'], [.5, '#d4b45f'], [1, '#6e5620']], { r: '60%', cx: '35%', cy: '30%' });
+    grad('hubG', [[0, '#f3e3a6'], [.45, '#cfae55'], [1, '#6a521f']], { r: '70%', cx: '40%', cy: '30%' });
+    grad('ballG', [[0, '#ffffff'], [.5, '#e8e0cc'], [1, '#8a8275']], { r: '65%', cx: '35%', cy: '30%' });
+    grad('shadeG', [[0, 'rgba(10,9,8,.0)'], [.7, 'rgba(10,9,8,.15)'], [1, 'rgba(10,9,8,.75)']], { r: '50%', cx: '50%', cy: '50%' });
+
+    // static base: rim, studs, track
+    el('circle', { cx: C, cy: C, r: R_OUT, class: 'rim' }, svg);
+    el('circle', { cx: C, cy: C, r: R_OUT - 14, class: 'rim-inner' }, svg);
+    for (let i = 0; i < 36; i++) { const [x, y] = P(R_OUT - 7, i * 10); el('circle', { cx: x, cy: y, r: 2.4, class: 'stud' }, svg); }
+    el('circle', { cx: C, cy: C, r: R_TRACK_O, class: 'track' }, svg);
+
+    // rotating group
+    const rot = el('g', { class: 'rot' }, svg);
+    const pockets = [];
+    data.forEach((d, i) => {
+      const a0 = i * step - step / 2, a1 = a0 + step, mid = i * step;
+      const [x0o, y0o] = P(R_POCKET_O, a0), [x1o, y1o] = P(R_POCKET_O, a1), [x0i, y0i] = P(R_POCKET_I, a0), [x1i, y1i] = P(R_POCKET_I, a1);
+      const path = `M ${x0i} ${y0i} L ${x0o} ${y0o} A ${R_POCKET_O} ${R_POCKET_O} 0 0 1 ${x1o} ${y1o} L ${x1i} ${y1i} A ${R_POCKET_I} ${R_POCKET_I} 0 0 0 ${x0i} ${y0i} Z`;
+      const clip = el('clipPath', { id: 'pk' + i }, defs); el('path', { d: path }, clip);
+      const g = el('g', { class: 'pocket', 'data-i': i }, rot);
+      el('path', { d: path, fill: i % 2 ? '#1c1813' : '#14110c' }, g);
+      // thumbnail, rotated so the top of the video points to the rim
+      const [mx, my] = P((R_POCKET_O + R_POCKET_I) / 2, mid);
+      const w = 2 * R_POCKET_O * Math.sin(step * Math.PI / 360) + 10, hgt = R_POCKET_O - R_POCKET_I + 10;
+      const img = el('image', { href: d.img, x: mx - w / 2, y: my - hgt / 2, width: w, height: hgt, preserveAspectRatio: 'xMidYMid slice', 'clip-path': `url(#pk${i})`, class: 'pocket-img', transform: `rotate(${mid} ${mx} ${my})` }, g);
+      el('path', { d: path, class: 'pocket-shade' }, g);
+      el('path', { d: path, class: 'pocket-win-glow' }, g);
+      // label along the outer edge
+      const [lx, ly] = P(R_POCKET_O - 16, mid);
+      el('text', { x: lx, y: ly + 4, class: 'label', transform: `rotate(${mid} ${lx} ${ly})` }, g).textContent = d.views;
+      pockets.push(g);
+    });
+    // separators + rings
+    for (let i = 0; i < n; i++) { const a = i * step - step / 2; const [x0, y0] = P(R_POCKET_I, a), [x1, y1] = P(R_POCKET_O, a); el('line', { x1: x0, y1: y0, x2: x1, y2: y1, class: 'pocket-line' }, rot); }
+    el('circle', { cx: C, cy: C, r: R_POCKET_O, class: 'pocket-ring' }, rot);
+    el('circle', { cx: C, cy: C, r: R_POCKET_I, class: 'pocket-ring' }, rot);
+    // hub + turret
+    el('circle', { cx: C, cy: C, r: R_HUB, class: 'hub' }, rot);
+    el('circle', { cx: C, cy: C, r: R_HUB - 16, class: 'hub-2' }, rot);
+    [0, 90, 180, 270].forEach(a => { const [x0, y0] = P(R_HUB - 14, a), [x1, y1] = P(R_HUB - 60, a); el('line', { x1: x0, y1: y0, x2: x1, y2: y1, class: 'turret' }, rot); el('circle', { cx: x0, cy: y0, r: 7, class: 'turret-cap' }, rot); });
+    const cap = el('g', { class: 'cap' }, svg);
+    el('circle', { cx: C, cy: C, r: 26, class: 'hub' }, cap);
+    el('text', { x: C, y: C + 10, class: 'mono' }, cap).textContent = 'ax.';
+
+    // ball
+    const orbit = el('g', { class: 'ball-orbit' }, svg);
+    const ball = el('g', { class: 'ball' }, orbit);
+    el('circle', { cx: C, cy: C - (R_TRACK_O + R_TRACK_I) / 2, r: 7, class: 'ball-dot' }, ball);
+
+    // state
+    const btn = $('#spinBtn'), again = $('#againBtn'), result = $('#result'), stage = $('#wheelStage'), burst = $('#burst');
+    const countEl = $('#spinCount');
+    let spins = 0; try { spins = parseInt(localStorage.getItem('ax-spins') || '0', 10) || 0; } catch (e) {}
+    countEl.textContent = spins.toLocaleString();
+    let angle = 0, ballAngle = 0, busy = false, winner = -1;
+    for (let k = 0; k < 18; k++) el('i', {}, null) ; // noop
+    for (let k = 0; k < 22; k++) { const s = document.createElement('i'); burst.appendChild(s); }
+
+    function showResult(d) {
+      $('#resImg').src = d.img; $('#resBrand').textContent = d.brand; $('#resPlat').textContent = d.plat;
+      $('#resTitle').textContent = d.title; $('#resSub').textContent = d.sub; $('#resViews').textContent = d.views;
+      $('#resLink').href = d.url;
+      result.classList.add('show');
+    }
+    function fire() {
+      burst.querySelectorAll('i').forEach(s => {
+        const a = Math.random() * Math.PI * 2, dist = 120 + Math.random() * 180;
+        s.style.setProperty('--dx', Math.cos(a) * dist + 'px'); s.style.setProperty('--dy', Math.sin(a) * dist + 'px');
+        s.style.setProperty('--rz', (Math.random() * 720 - 360) + 'deg'); s.style.setProperty('--d', Math.random() * 120);
+      });
+      burst.classList.remove('go'); void burst.offsetWidth; burst.classList.add('go');
+    }
+    function spin() {
+      if (busy) return; busy = true;
+      btn.disabled = true; result.classList.remove('show');
+      if (winner >= 0) pockets[winner].classList.remove('win');
+      ball.classList.remove('dropped');
+      const pick = Math.floor(Math.random() * n);
+      const jitter = (Math.random() - 0.5) * step * 0.5;
+      const turns = 5 + Math.floor(Math.random() * 3);
+      // bring pocket "pick" to the top marker: rotation ≡ -pick*step (mod 360)
+      const cur = ((angle % 360) + 360) % 360;
+      const target = ((-pick * step - jitter) - cur + 360) % 360;
+      angle += turns * 360 + target;
+      ballAngle -= (turns + 2) * 360; // ends at the top (multiple of 360)
+      const dur = reduce ? 0.001 : 5.8, bdur = reduce ? 0.001 : 5.0;
+      rot.style.setProperty('--dur', dur + 's'); orbit.style.setProperty('--bdur', bdur + 's');
+      rot.classList.add('spinning'); orbit.classList.add('spinning');
+      stage.style.setProperty('--tilt', '8deg');
+      requestAnimationFrame(() => { rot.style.transform = `rotate(${angle}deg)`; orbit.style.transform = `rotate(${ballAngle}deg)`; });
+      setTimeout(() => ball.classList.add('dropped'), bdur * 1000 - 150);
+      setTimeout(() => {
+        winner = pick; pockets[pick].classList.add('win');
+        stage.style.setProperty('--tilt', '0deg');
+        spins++; countEl.textContent = spins.toLocaleString(); try { localStorage.setItem('ax-spins', String(spins)); } catch (e) {}
+        fire(); showResult(data[pick]);
+        btn.disabled = false; busy = false;
+      }, dur * 1000 + 120);
+    }
+    btn.addEventListener('click', spin);
+    again.addEventListener('click', spin);
+    svg.addEventListener('click', spin);
+    svg.style.cursor = 'pointer';
+  })();
 
   /* ---------- Gauge (tick arc + needle) ---------- */
   const g = $('#gauge');
