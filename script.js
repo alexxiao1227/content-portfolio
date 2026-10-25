@@ -294,7 +294,16 @@
       btn.disabled = true; result.classList.remove('show');
       if (winner >= 0) pockets[winner].classList.remove('win');
       ball.classList.remove('dropped');
-      const pick = Math.floor(Math.random() * n);
+      // shuffle bag: every pocket once before any repeat (persisted per browser)
+      let bag = [];
+      try { bag = JSON.parse(localStorage.getItem('ax-bag') || '[]'); } catch (e) {}
+      if (!Array.isArray(bag) || !bag.length || bag.some(x => x < 0 || x >= n)) {
+        bag = Array.from({ length: n }, (_, k) => k);
+        for (let k = n - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [bag[k], bag[j]] = [bag[j], bag[k]]; }
+        if (winner >= 0 && bag[bag.length - 1] === winner && n > 1) [bag[0], bag[bag.length - 1]] = [bag[bag.length - 1], bag[0]];
+      }
+      const pick = bag.pop();
+      try { localStorage.setItem('ax-bag', JSON.stringify(bag)); } catch (e) {}
       const jitter = (Math.random() - 0.5) * step * 0.5;
       const turns = 5 + Math.floor(Math.random() * 3);
       // bring pocket "pick" to the top marker: rotation ≡ -pick*step (mod 360)
