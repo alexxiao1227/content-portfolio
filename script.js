@@ -107,7 +107,7 @@
   const featured = $('.featured');
   const countEl = $('#count');
   const filterBtns = $$('[data-filter]');
-  const items = () => [featured, ...$$('.vcard', grid)].filter(Boolean);
+  const items = () => [featured, ...$$('.vrow', grid)].filter(Boolean);
   let filtering = false;
 
   function applyFilter(f) {
@@ -120,7 +120,7 @@
     const swap = () => {
       toHide.forEach(el => { el.hidden = true; el.classList.remove('leaving'); });
       toShow.forEach(el => { el.hidden = false; el.classList.add('entering', 'in'); });
-      $$('.vcard:not([hidden]), .featured:not([hidden])').forEach((el, i) => el.style.setProperty('--i', i));
+      $$('.vrow:not([hidden]), .featured:not([hidden])').forEach((el, i) => el.style.setProperty('--i', i));
       setTimeout(() => toShow.forEach(el => el.classList.remove('entering')), 700);
       const n = all.filter(el => !el.hidden).length;
       countEl.textContent = `${String(n).padStart(2, '0')} on the board · 09 on the wheel`;
@@ -204,7 +204,7 @@
     const data = $$('.wheel-data li').map(li => ({ ...li.dataset }));
     const n = data.length; if (!n) return;
     const NS = 'http://www.w3.org/2000/svg';
-    const C = 250, R_OUT = 244, R_TRACK_O = 226, R_TRACK_I = 208, R_POCKET_O = 206, R_POCKET_I = 104, R_HUB = 100;
+    const C = 250, R_OUT = 244, R_TRACK_O = 226, R_TRACK_I = 208, R_BAND_O = 206, R_POCKET_O = 182, R_POCKET_I = 104, R_HUB = 100;
     const el = (t, a, parent) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (parent) parent.appendChild(e); return e; };
     const P = (r, deg) => { const a = (deg - 90) * Math.PI / 180; return [C + Math.cos(a) * r, C + Math.sin(a) * r]; };
     const step = 360 / n;
@@ -230,6 +230,7 @@
     data.forEach((d, i) => {
       const a0 = i * step - step / 2, a1 = a0 + step, mid = i * step;
       const [x0o, y0o] = P(R_POCKET_O, a0), [x1o, y1o] = P(R_POCKET_O, a1), [x0i, y0i] = P(R_POCKET_I, a0), [x1i, y1i] = P(R_POCKET_I, a1);
+      const [bx0, by0] = P(R_BAND_O, a0), [bx1, by1] = P(R_BAND_O, a1);
       const path = `M ${x0i} ${y0i} L ${x0o} ${y0o} A ${R_POCKET_O} ${R_POCKET_O} 0 0 1 ${x1o} ${y1o} L ${x1i} ${y1i} A ${R_POCKET_I} ${R_POCKET_I} 0 0 0 ${x0i} ${y0i} Z`;
       const clip = el('clipPath', { id: 'pk' + i }, defs); el('path', { d: path }, clip);
       const g = el('g', { class: 'pocket', 'data-i': i }, rot);
@@ -239,15 +240,18 @@
       const w = 2 * R_POCKET_O * Math.sin(step * Math.PI / 360) + 10, hgt = R_POCKET_O - R_POCKET_I + 10;
       const img = el('image', { href: d.img, x: mx - w / 2, y: my - hgt / 2, width: w, height: hgt, preserveAspectRatio: 'xMidYMid slice', 'clip-path': `url(#pk${i})`, class: 'pocket-img', transform: `rotate(${mid} ${mx} ${my})` }, g);
       el('path', { d: path, class: 'pocket-shade' }, g);
-      el('path', { d: path, class: 'pocket-win-glow' }, g);
-      // label along the outer edge
-      const [lx, ly] = P(R_POCKET_O - 16, mid);
+      // number band (outside the thumbnail ring)
+      const band = `M ${x0o} ${y0o} L ${bx0} ${by0} A ${R_BAND_O} ${R_BAND_O} 0 0 1 ${bx1} ${by1} L ${x1o} ${y1o} A ${R_POCKET_O} ${R_POCKET_O} 0 0 0 ${x0o} ${y0o} Z`;
+      el('path', { d: band, class: 'band' + (i % 2 ? ' alt' : '') }, g);
+      const [lx, ly] = P((R_BAND_O + R_POCKET_O) / 2, mid);
       el('text', { x: lx, y: ly + 4, class: 'label', transform: `rotate(${mid} ${lx} ${ly})` }, g).textContent = d.views;
+      el('path', { d: `M ${x0i} ${y0i} L ${bx0} ${by0} A ${R_BAND_O} ${R_BAND_O} 0 0 1 ${bx1} ${by1} L ${x1i} ${y1i} A ${R_POCKET_I} ${R_POCKET_I} 0 0 0 ${x0i} ${y0i} Z`, class: 'pocket-win-glow' }, g);
       pockets.push(g);
     });
     // separators + rings
-    for (let i = 0; i < n; i++) { const a = i * step - step / 2; const [x0, y0] = P(R_POCKET_I, a), [x1, y1] = P(R_POCKET_O, a); el('line', { x1: x0, y1: y0, x2: x1, y2: y1, class: 'pocket-line' }, rot); }
+    for (let i = 0; i < n; i++) { const a = i * step - step / 2; const [x0, y0] = P(R_POCKET_I, a), [x1, y1] = P(R_BAND_O, a); el('line', { x1: x0, y1: y0, x2: x1, y2: y1, class: 'pocket-line' }, rot); }
     el('circle', { cx: C, cy: C, r: R_POCKET_O, class: 'pocket-ring' }, rot);
+    el('circle', { cx: C, cy: C, r: R_BAND_O, class: 'pocket-ring strong' }, rot);
     el('circle', { cx: C, cy: C, r: R_POCKET_I, class: 'pocket-ring' }, rot);
     // hub + turret
     el('circle', { cx: C, cy: C, r: R_HUB, class: 'hub' }, rot);
