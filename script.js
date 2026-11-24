@@ -98,6 +98,55 @@
     }
   }
 
+  /* ---------- Gold card flip ---------- */
+  if (card) {
+    let flipping = false;
+    const flip = () => {
+      if (flipping) return;
+      flipping = true;
+      const back = !card.classList.contains('is-back');
+      card.classList.add('flipping');
+      card.style.setProperty('--flip', '90deg');
+      setTimeout(() => {
+        card.classList.toggle('is-back', back);
+        card.setAttribute('aria-pressed', String(back));
+        card.classList.remove('flipping');
+        card.classList.add('snap');
+        card.style.setProperty('--flip', '-90deg');
+        void card.offsetWidth;
+        card.classList.remove('snap');
+        card.classList.add('flipping', 'out');
+        card.style.setProperty('--flip', '0deg');
+        setTimeout(() => { card.classList.remove('flipping', 'out'); flipping = false; }, reduce ? 0 : 430);
+      }, reduce ? 0 : 240);
+    };
+    card.addEventListener('click', flip);
+    card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } });
+  }
+
+  /* ---------- Row hover: floating phone preview ---------- */
+  if (fine && !reduce) {
+    const peek = document.createElement('div');
+    peek.className = 'peek'; peek.setAttribute('aria-hidden', 'true');
+    const pimg = document.createElement('img'); pimg.alt = '';
+    peek.appendChild(pimg); document.body.appendChild(peek);
+    let praf = 0, px = 0, py = 0;
+    const place = () => { praf = 0; peek.style.setProperty('--x', px + 'px'); peek.style.setProperty('--y', py + 'px'); };
+    $$('.vrow').forEach(row => {
+      const im = $('.thumb img', row); if (!im) return;
+      const src = im.getAttribute('src');
+      row.addEventListener('pointerenter', () => { pimg.src = src; peek.classList.add('on'); });
+      row.addEventListener('pointerleave', () => peek.classList.remove('on'));
+      row.addEventListener('pointermove', e => {
+        const w = 170, h = 302;
+        px = Math.min(window.innerWidth - w - 16, e.clientX + 30);
+        py = Math.max(16, Math.min(window.innerHeight - h - 16, e.clientY - h / 2));
+        if (!praf) praf = requestAnimationFrame(place);
+      }, { passive: true });
+    });
+    window.addEventListener('scroll', () => peek.classList.remove('on'), { passive: true });
+  }
+
   /* ---------- Ticker (duplicate for seamless loop) ---------- */
   const ticker = $('#ticker');
   if (ticker) ticker.innerHTML += ticker.innerHTML;
@@ -275,6 +324,33 @@
     for (let k = 0; k < 18; k++) el('i', {}, null) ; // noop
     for (let k = 0; k < 22; k++) { const s = document.createElement('i'); burst.appendChild(s); }
 
+    // collection: which pockets this browser has landed on
+    const slotsEl = $('#foundSlots'), foundN = $('#foundN'), foundLabel = $('#foundLabel');
+    let found = [];
+    try { found = JSON.parse(localStorage.getItem('ax-found') || '[]'); } catch (e) {}
+    if (!Array.isArray(found)) found = [];
+    found = found.filter(x => Number.isInteger(x) && x >= 0 && x < n);
+    const slots = slotsEl ? data.map((d, i) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.disabled = true; b.setAttribute('aria-label', 'Not found yet');
+      b.addEventListener('click', () => { if (!busy && found.includes(i)) showResult(d); });
+      slotsEl.appendChild(b);
+      return b;
+    }) : [];
+    function paintFound(fresh) {
+      if (!slots.length) return;
+      found.forEach(i => {
+        const b = slots[i];
+        b.disabled = false; b.classList.add('got');
+        b.style.backgroundImage = 'url(' + data[i].img + ')';
+        b.setAttribute('aria-label', 'Show ' + data[i].title);
+        b.classList.toggle('new', i === fresh);
+      });
+      if (foundN) foundN.textContent = found.length;
+      if (foundLabel && found.length === n) foundLabel.innerHTML = '<b>Full house.</b> All nine found';
+    }
+    paintFound(-1);
+
     function showResult(d) {
       $('#resImg').src = d.img; $('#resBrand').textContent = d.brand; $('#resPlat').textContent = d.plat;
       $('#resTitle').textContent = d.title; $('#resSub').textContent = d.sub; $('#resViews').textContent = d.views;
@@ -321,6 +397,9 @@
         winner = pick; pockets[pick].classList.add('win');
         stage.style.setProperty('--tilt', '0deg');
         spins++; countEl.textContent = spins.toLocaleString(); try { localStorage.setItem('ax-spins', String(spins)); } catch (e) {}
+        const fresh = !found.includes(pick);
+        if (fresh) { found.push(pick); try { localStorage.setItem('ax-found', JSON.stringify(found)); } catch (e) {} }
+        paintFound(fresh ? pick : -1);
         fire(); showResult(data[pick]);
         btn.disabled = false; busy = false;
       }, dur * 1000 + 120);
